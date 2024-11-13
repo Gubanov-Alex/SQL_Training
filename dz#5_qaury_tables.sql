@@ -294,3 +294,239 @@ ALTER TABLE Teachers ADD  CONSTRAINT Teachers_FK00 FOREIGN KEY(Id_Dep)
     ON UPDATE CASCADE
     ON DELETE CASCADE;
 
+
+#1)Отобразить книги с минимальным количеством страниц,
+# выпущенные тем или иным издательством.
+
+Select p.Name , b.Name, b.Pages FROM Books AS b
+JOIN Press AS p ON b.Id_Press = p.Id
+WHERE b.Pages = (SELECT MIN(b1.Pages)
+FROM Books AS b1
+WHERE b1.Id_Press = b.Id_Press);
+
+#2)Отобразить названия издательств, которые выпустили
+# книги со средним количеством страниц большим 100.
+
+SELECT p.Name, AVG(b.Pages) AS NumBooks FROM Books AS b
+JOIN Press AS p ON b.Id_Press = p.Id
+GROUP BY p.Name
+HAVING AVG(b.Pages) > 100;
+
+
+#3)Вывести общую сумму страниц всех имеющихся в библиотеке книг,
+# выпущенных издательствами BHV и БИНО
+
+SELECT SUM(b.Pages) AS TotalPages
+FROM Books AS b
+JOIN Press AS p ON b.Id_Press = p.Id
+WHERE p.Name IN ('BHV', 'БИНОМ');
+
+#4)Выбрать имена и фамилии всех студентов, которые брали книги
+# в промежутке между 1 Января 2001 года и текущей датой.
+
+
+SELECT s.FirstName, s.LastName,b.Name FROM students AS s
+JOIN s_cards AS sc ON s.Id = sc.Id_Student
+JOIN books AS b ON sc.Id_Book = b.Id
+WHERE sc.DateOut BETWEEN '2001-01-01' AND CURDATE();
+
+#5)Найти всех студентов, кто на данный момент работает
+# с книгой "Реестр Windows 2000" автора Ольга Кокорева.
+
+SELECT s.FirstName, s.LastName FROM students AS s
+JOIN s_cards AS sc ON s.Id = sc.Id_Student
+JOIN books AS b ON sc.Id_Book = b.Id
+JOIN authors AS a ON b.Id_Author = a.Id
+WHERE b.Name = 'Реестр Windows 2000'
+  AND a.FirstName = 'Ольга'
+  AND a.LastName = 'Кокорева'
+  AND sc.DateIn IS NULL;
+
+#6)Отобразить информацию об авторах, средний
+# объем книг которых (в страницах) более 600 страниц.
+
+SELECT a.FirstName, a.LastName,b.Pages FROM authors AS a
+JOIN books AS b ON a.Id = b.Id_Author
+GROUP BY a.Id, a.FirstName, a.LastName,b.Pages
+HAVING AVG(b.Pages) > 600;
+
+#7)Отобразить информацию об издательствах, у которых общее
+# количество страниц выпущенных ими книг больше 700.
+
+SELECT p.Name,SUM(b.Pages) FROM press AS p
+JOIN books AS b ON p.Id = b.Id_Press
+GROUP BY p.Id, p.Name
+HAVING SUM(b.Pages) > 700;
+
+#8)Отобразить всех посетителей
+# библиотеки (и студентов и преподавателей) и книги, которые они брали.
+
+SELECT 'Student' AS VisitorType, s.FirstName, s.LastName, b.Name AS BookName
+FROM students AS s
+JOIN s_cards AS sc ON s.Id = sc.Id_Student
+JOIN books AS b ON sc.Id_Book = b.Id
+UNION ALL
+SELECT 'Teacher' AS VisitorType, t.FirstName, t.LastName, b.Name AS BookName
+FROM teachers AS t
+JOIN t_cards AS tc ON t.Id = tc.Id_Teacher
+JOIN books AS b ON tc.Id_Book = b.Id;
+
+#9) Вывести самого популярного автора(ов)
+# среди студентов и количество книг этого автора, взятых в библиотеке.
+
+SELECT a.FirstName, a.LastName, COUNT(*) AS TakenBooks FROM authors AS a
+JOIN books AS b ON a.Id = b.Id_Author
+JOIN s_cards AS sc ON b.Id = sc.Id_Book
+GROUP BY a.Id, a.FirstName, a.LastName
+HAVING COUNT(*) = (SELECT MAX(BookCount)FROM ( SELECT COUNT(*) AS BookCount
+FROM authors AS a
+JOIN books AS b ON a.Id = b.Id_Author
+JOIN s_cards AS sc ON b.Id = sc.Id_Book
+GROUP BY a.Id) AS counts
+);
+
+#10)Вывести самого популярного автора(ов) среди
+# преподавателей и количество книг этого автора, взятых в библиотеке.
+
+SELECT a.FirstName, a.LastName, COUNT(*) AS TakenBooks FROM authors AS a
+JOIN books AS b ON a.Id = b.Id_Author
+JOIN t_cards AS tc ON b.Id = tc.Id_Book
+GROUP BY a.Id, a.FirstName, a.LastName
+HAVING COUNT(*) = (SELECT MAX(BookCount) FROM (SELECT COUNT(*) AS BookCount
+FROM authors AS a
+JOIN books AS b ON a.Id = b.Id_Author
+JOIN t_cards AS tc ON b.Id = tc.Id_Book
+GROUP BY a.Id) AS counts
+);
+
+#11)Вывести самую популярную(ые)
+# тематику(и) среди студентов и преподавателей.
+
+SELECT t.Name, COUNT(*) AS TakenBooks FROM themes AS t
+JOIN books AS b ON t.Id = b.Id_Themes
+LEFT JOIN s_cards AS sc ON b.Id = sc.Id_Book
+LEFT JOIN t_cards AS tc ON b.Id = tc.Id_Book
+GROUP BY t.Id, t.Name
+HAVING COUNT(*) = (SELECT MAX(BookCount)
+FROM (SELECT t2.Id, COUNT(*) AS BookCount FROM themes AS t2
+JOIN books AS b2 ON t2.Id = b2.Id_Themes
+LEFT JOIN s_cards AS sc2 ON b2.Id = sc2.Id_Book
+LEFT JOIN t_cards AS tc2 ON b2.Id = tc2.Id_Book
+GROUP BY t2.Id) AS counts
+);
+
+#12)Отобразить количество преподавателей и студентов, посетивших библиотеку.
+
+SELECT
+    (SELECT COUNT(DISTINCT sc.Id_Student) FROM s_cards sc) AS StudentsCount,
+    (SELECT COUNT(DISTINCT tc.Id_Teacher) FROM t_cards tc) AS TeachersCount;
+
+#13)Если считать общее количество книг в библиотеке за 100%, то необходимо
+# подсчитать, сколько книг (в процентном отношении) брал каждый факультет.
+
+SELECT fac.Name AS FacultyName, (IFNULL(SUM(borrowed_books.BookCount), 0) / IFNULL(total_books.TotalQuantity, 0)) * 100 AS BookPercentage
+FROM faculties AS fac
+LEFT JOIN subgroup AS sg ON fac.Id = sg.Id_Faculty
+LEFT JOIN students AS st ON sg.Id = st.Id_Group
+LEFT JOIN (SELECT sc.Id_Student, COUNT(DISTINCT sc.Id_Book) AS BookCount FROM s_cards AS sc
+GROUP BY sc.Id_Student)
+AS borrowed_books ON st.Id = borrowed_books.Id_Student
+CROSS JOIN (SELECT SUM(Quantity) AS TotalQuantity FROM books) AS total_books
+GROUP BY fac.Name, total_books.TotalQuantity;
+
+
+#14)Отобразить самый читающий факультет и самую читающую кафедру.
+
+WITH BookCounts_f AS (SELECT f.Name AS FacultyName,COUNT(sc.Id_Book) AS BookCount_f
+FROM faculties AS f
+LEFT JOIN subgroup AS sb ON f.Id = sb.Id_Faculty
+LEFT JOIN students AS s ON sb.Id = s.Id_Group
+LEFT JOIN s_cards AS sc ON s.Id = sc.Id_Student
+GROUP BY f.Name),
+BookCounts_t AS (SELECT d.Name AS DepartmentName,COUNT(tc.Id_Book) AS BookCount_t
+FROM departments AS d
+LEFT JOIN teachers AS t ON d.Id = t.Id_Dep
+LEFT JOIN t_cards AS tc ON t.Id = tc.Id_Teacher
+GROUP BY d.Name     ),
+TopFaculty AS (SELECT FacultyName, BookCount_f AS TotalBooks_f
+FROM BookCounts_f
+GROUP BY FacultyName
+ORDER BY TotalBooks_f DESC
+LIMIT 1),
+TopDepartment AS (SELECT DepartmentName, BookCount_t AS TotalBooks_d
+FROM BookCounts_t
+GROUP BY DepartmentName
+ORDER BY BookCount_t DESC
+LIMIT 1)
+SELECT 'Most Reading Faculty' AS Title, FacultyName, NULL AS DepartmentName, TotalBooks_f AS BooksCount
+FROM TopFaculty
+UNION ALL
+SELECT 'Most Reading Department' AS Title, NULL AS FacultyName, DepartmentName, TotalBooks_d AS BooksCount
+FROM TopDepartment;
+
+#15)Показать автора (ов) самых
+# популярных книг среди преподавателей и студентов.
+
+WITH PopularBooks AS (SELECT book_id,COUNT(*) as borrow_count
+FROM (SELECT Id_Book as book_id
+FROM s_cards
+UNION ALL
+SELECT Id_Book as book_id
+FROM t_cards) AS unified_borrows
+GROUP BY book_id
+ORDER BY borrow_count DESC
+LIMIT 1)
+SELECT a.FirstName,a.LastName,pb.borrow_count
+FROM PopularBooks pb
+JOIN books b ON pb.book_id = b.Id
+JOIN authors a ON b.Id_Author = a.Id;
+
+#16)Отобразить названия самых популярных
+# книг среди преподавателей и студентов.
+
+WITH PopularBooks AS (SELECT book_id, COUNT(*) AS borrow_count
+FROM (SELECT Id_Book AS book_id FROM s_cards
+UNION ALL
+SELECT Id_Book AS book_id FROM t_cards) AS unified_borrows
+GROUP BY book_id
+ORDER BY borrow_count DESC
+LIMIT 5)
+SELECT b.Name,borrow_count
+FROM PopularBooks pb
+JOIN books b ON pb.book_id = b.Id;
+
+#17)Показать всех студентов и преподавателей дизайнеров.
+
+SELECT 'Student' AS PersonType, s.FirstName, s.LastName
+FROM students s JOIN subgroup sg ON s.Id_Group = sg.Id
+WHERE sg.Id_Faculty = 2
+UNION ALL
+SELECT 'Teacher' AS PersonType, t.FirstName, t.LastName
+FROM teachers t WHERE Id_Dep = 2;
+
+#18)Показать всю информацию о студентах и преподавателях, бравших книги.
+
+SELECT 'Student' AS PersonType, s.Id, s.FirstName, s.LastName, s.Id_Group, s.Term
+FROM students s JOIN s_cards sc ON s.Id = sc.Id_Student
+UNION ALL
+SELECT 'Teacher' AS PersonType, t.Id, t.FirstName, t.LastName, t.Id_Dep, NULL AS Term
+FROM teachers t JOIN t_cards tc ON t.Id = tc.Id_Teacher;
+
+#19)Показать книги, которые брали и преподаватели и студенты.
+
+SELECT DISTINCT b.Name
+FROM books b
+JOIN s_cards sc ON b.Id = sc.Id_Book
+JOIN t_cards tc ON b.Id = tc.Id_Book;
+
+#20)Показать сколько книг выдал каждый из библиотекарей.
+
+SELECT l.FirstName, l.LastName,sc.BookCount + tc.BookCount AS TotalBookCount
+FROM libs l
+LEFT JOIN (SELECT Id_Lib, COUNT(Id_Book) AS BookCount
+FROM s_cards GROUP BY Id_Lib) sc ON l.Id = sc.Id_Lib
+LEFT JOIN (SELECT Id_Lib, COUNT(Id_Book) AS BookCount
+FROM t_cards GROUP BY Id_Lib) tc ON l.Id = tc.Id_Lib
+ORDER BY l.FirstName, l.LastName;
+
+
