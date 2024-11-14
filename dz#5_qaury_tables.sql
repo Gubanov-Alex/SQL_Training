@@ -530,3 +530,34 @@ FROM t_cards GROUP BY Id_Lib) tc ON l.Id = tc.Id_Lib
 ORDER BY l.FirstName, l.LastName;
 
 
+
+WITH BookCounts_f AS (SELECT f.Name AS FacultyName,COUNT(sc.Id_Book) AS BookCount_f
+                      FROM faculties AS f
+                               LEFT JOIN subgroup AS sb ON f.Id = sb.Id_Faculty
+                               LEFT JOIN students AS s ON sb.Id = s.Id_Group
+                               LEFT JOIN s_cards AS sc ON s.Id = sc.Id_Student
+                      GROUP BY f.Name),
+     BookCounts_t AS (SELECT d.Name AS DepartmentName,COUNT(tc.Id_Book) AS BookCount_t
+                      FROM departments AS d
+                               LEFT JOIN teachers AS t ON d.Id = t.Id_Dep
+                               LEFT JOIN t_cards AS tc ON t.Id = tc.Id_Teacher
+                      GROUP BY d.Name     ),
+     TopFaculty AS (SELECT FacultyName, BookCount_f AS TotalBooks_f
+                    FROM BookCounts_f
+                    GROUP BY FacultyName
+                    ORDER BY TotalBooks_f DESC
+                    LIMIT 1),
+     TopDepartment AS (SELECT DepartmentName, BookCount_t AS TotalBooks_d
+                       FROM BookCounts_t
+                       GROUP BY DepartmentName
+                       ORDER BY BookCount_t DESC
+                       LIMIT 1)
+SELECT 'Most Reading Faculty' AS Title, FacultyName, NULL AS DepartmentName, TotalBooks_f AS BooksCount
+FROM TopFaculty
+UNION ALL
+SELECT 'Most Reading Department' AS Title, NULL AS FacultyName, DepartmentName, TotalBooks_d AS BooksCount
+FROM TopDepartment;
+
+
+
+

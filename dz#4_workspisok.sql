@@ -253,7 +253,6 @@ GROUP BY C.ContinentId, CT.Name
 ORDER BY SUM(C.Champion) DESC
 LIMIT 2;#14)Europe
 
-
 SELECT Name
 FROM (
          SELECT l.Name, COUNT(*) AS cnt
